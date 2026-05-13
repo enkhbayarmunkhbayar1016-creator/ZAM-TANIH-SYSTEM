@@ -3,8 +3,10 @@ services:
     name: tactile-navigation
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+    startCommand: gunicorn app:app --workers 1 --timeout 120
     envVars:
-      - key: MODEL_PATH
+      - key: TACTILE_MODEL
+        value: best.pt
+      - key: OBSTACLE_MODEL
         value: yolov8n.pt
     healthCheckPath: /health

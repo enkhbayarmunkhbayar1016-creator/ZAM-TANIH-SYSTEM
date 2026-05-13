@@ -20,20 +20,24 @@ from decision_engine import DecisionEngine
 app = Flask(__name__)
 
 # ── Загваруудыг нэг удаа ачаалах ──────────────────────────────
-MODEL_PATH = os.environ.get("MODEL_PATH", "yolov8n.pt")
+# TACTILE_MODEL: тактил хавтас таних custom загвар (best.pt)
+# OBSTACLE_MODEL: COCO саад таних загвар (yolov8n.pt)
+TACTILE_MODEL  = os.environ.get("TACTILE_MODEL",  "best.pt")
+OBSTACLE_MODEL = os.environ.get("OBSTACLE_MODEL", "yolov8n.pt")
 
-print(f"[INIT] Загвар ачаалж байна: {MODEL_PATH}")
+print(f"[INIT] Тактил загвар: {TACTILE_MODEL}")
+print(f"[INIT] Саадын загвар: {OBSTACLE_MODEL}")
 try:
     from ultralytics import YOLO
-    _tac_model = YOLO(MODEL_PATH)
+    _tac_model = YOLO(TACTILE_MODEL)
     print("[INIT] ✅ Тактил загвар бэлэн")
 except Exception as e:
-    print(f"[INIT] ❌ Загвар алдаа: {e}")
+    print(f"[INIT] ❌ Тактил загвар алдаа: {e}")
     _tac_model = None
 
 _tac_nav   = TactileNavigator()
 _path_mgr  = PathLostManager()
-_obstacle  = ObstacleYOLO(MODEL_PATH)
+_obstacle  = ObstacleYOLO(OBSTACLE_MODEL)
 _walk_det  = WalkablePathDetector()
 _bridge    = SafeBridgeManager()
 _decider   = DecisionEngine()
@@ -121,7 +125,12 @@ def api_frame():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "model": MODEL_PATH})
+    return jsonify({
+        "status":         "ok",
+        "tactile_model":  TACTILE_MODEL,
+        "obstacle_model": OBSTACLE_MODEL,
+        "model_loaded":   _tac_model is not None,
+    })
 
 
 if __name__ == "__main__":
