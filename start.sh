@@ -31,11 +31,17 @@ export YOLO_CONFIG_DIR=/tmp/yolo_cache/config
 export YOLO_VERBOSE=False
 export TF_CPP_MIN_LOG_LEVEL=3
 
+# Get the port - Render provides PORT, fallback to 5000
+PORT=${PORT:-5000}
+
 echo "✅ Environment configured"
 echo "   YOLO_CACHE: $YOLO_CACHE"
 echo "   YOLO_CONFIG_DIR: $YOLO_CONFIG_DIR"
+echo "   PORT: $PORT"
 
 # Start the Flask app with gunicorn
+# Use workers=1 to minimize memory usage on free tier
+# bind to all interfaces on the provided port
 echo ""
-echo "🔄 Starting Flask app..."
-gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --timeout 120 app:app
+echo "🔄 Starting Flask app on port $PORT..."
+exec gunicorn --bind "0.0.0.0:$PORT" --workers 1 --worker-class sync --timeout 120 --access-logfile - --error-logfile - app:app
