@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Тактил Навигаци</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    /* ── Камерын видео ── */
+    #video-wrap {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #canvas { display: none; }
+
+    /* ── Навигацийн overlay ── */
+    #nav-box {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 12px 16px 20px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.92) 30%);
+      transition: border-color 0.2s;
+      border-top: 3px solid #444;
+    }
+    #arrow {
+      font-size: 3.5rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      line-height: 1;
+    }
+    #label {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-top: 4px;
+      letter-spacing: 1px;
+    }
+    #detail {
+      font-size: 0.85rem;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+    #meta {
+      font-size: 0.65rem;
+      opacity: 0.45;
+      margin-top: 6px;
+    }
+
+    /* ── Pixel gauge ── */
+    #gauge-wrap {
+      height: 5px;
+      background: #222;
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    #gauge-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      transition: width 0.2s, background 0.2s;
+    }
+
+    /* ── Start screen ── */
+    #start-screen {
+      position: fixed;
+      inset: 0;
+      background: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      z-index: 100;
+    }
+    #start-screen h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      line-height: 1.4;
+    }
+    #start-screen p {
+      font-size: 0.85rem;
+      opacity: 0.6;
+      text-align: center;
+      max-width: 280px;
+    }
+    #btn-start {
+      background: #0af;
+      color: #000;
+      border: none;
+      padding: 16px 40px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      border-radius: 50px;
+      cursor: pointer;
+      letter-spacing: 1px;
+    }
+    #btn-start:active { opacity: 0.8; }
+
+    /* ── Status chip ── */
+    #status-chip {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: rgba(0,0,0,0.6);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.65rem;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Camera flip button ── */
+    #btn-flip {
+      position: absolute;
+      top: 12px; left: 12px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid #444;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Start screen -->
+<div id="start-screen">
+  <h1>🦯 Тактил<br>Навигаци</h1>
+  <p>Утасны камераар тактил хавтас илрүүлж чиглэл заана</p>
+  <button id="btn-start">ЭХЛҮҮЛЭХ</button>
+</div>
+
+<!-- Camera -->
+<div id="video-wrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+
+  <button id="btn-flip">↔ КАМЕР</button>
+  <div id="status-chip">⏳ холбогдож байна...</div>
+
+  <div id="nav-box">
+    <div id="arrow"> ^ </div>
+    <div id="label">ХҮЛЭЭЖ БАЙНА...</div>
+    <div id="detail"></div>
+    <div id="meta">conf: -- | mode: --</div>
+    <div id="gauge-wrap"><div id="gauge-bar"></div></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// ── Элементүүд ──────────────────────────────────────────────
+const video     = $('video');
+const canvas    = $('canvas');
+const ctx       = canvas.getContext('2d');
+const navBox    = $('nav-box');
+const arrowEl   = $('arrow');
+const labelEl   = $('label');
+const detailEl  = $('detail');
+const metaEl    = $('meta');
+const gaugeBar  = $('gauge-bar');
+const statusEl  = $('status-chip');
+
+// ── Камер ───────────────────────────────────────────────────
+let facingMode = 'environment';   // арын камер (default)
+let stream     = null;
+
+async function startCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    });
+    video.srcObject = stream;
+    statusEl.textContent = '🟢 камер ажиллаж байна';
+  } catch (e) {
+    statusEl.textContent = '❌ камер нээгдсэнгүй';
+    console.error(e);
+  }
+}
+
+$('btn-flip').addEventListener('click', () => {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+});
+
+$('btn-start').addEventListener('click', async () => {
+  $('start-screen').style.display = 'none';
+  await startCamera();
+  startLoop();
+});
+
+// ── Frame дамжуулах loop ─────────────────────────────────────
+const INTERVAL_MS = 250;   // 4 frame/sec серверт илгээнэ
+const PIX_NORMAL  = 2000;
+
+function captureBase64() {
+  canvas.width  = 320;
+  canvas.height = 240;
+  ctx.drawImage(video, 0, 0, 320, 240);
+  return canvas.toDataURL('image/jpeg', 0.7);
+}
+
+function rgbCss([r, g, b]) {
+  return `rgb(${r},${g},${b})`;
+}
+
+async function sendFrame() {
+  if (!stream || video.readyState < 2) return;
+  const image = captureBase64();
+  try {
+    const resp = await fetch('/api/frame', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image }),
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    applyResult(data);
+  } catch (e) {
+    statusEl.textContent = '⚠ серверт холбогдохгүй байна';
+  }
+}
+
+function applyResult(data) {
+  const col    = rgbCss(data.color || [100,100,100]);
+  const parts  = (data.message || '').split(' | ');
+  const label  = parts[0] || '';
+  const detail = parts[1] || '';
+
+  arrowEl.textContent   = data.arrow  || '?';
+  arrowEl.style.color   = col;
+  labelEl.textContent   = label;
+  labelEl.style.color   = col;
+  detailEl.textContent  = detail;
+  navBox.style.borderColor = col;
+
+  metaEl.textContent =
+    `conf: ${Math.round((data.conf||0)*100)}%  mode: ${data.mode||'?'}`;
+
+  // Gauge
+  const pct = Math.min((data.pixels || 0) / PIX_NORMAL, 1) * 100;
+  gaugeBar.style.width = pct + '%';
+  gaugeBar.style.background = col;
+
+  // Статус
+  statusEl.textContent = `🟢 ${data.mode || '?'}`;
+  statusEl.style.color = col;
+}
+
+function startLoop() {
+  setInterval(sendFrame, INTERVAL_MS);
+}
+</script>
+</body>
+</html>
