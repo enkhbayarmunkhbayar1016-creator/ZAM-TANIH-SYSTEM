@@ -19,6 +19,9 @@ import argparse
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 
+# ── YOLO environment setup (MUST be before importing YOLO) ─────
+import yolo_config
+
 import cv2
 import numpy as np
 

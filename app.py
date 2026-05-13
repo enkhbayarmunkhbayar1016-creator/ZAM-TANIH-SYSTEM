@@ -5,6 +5,10 @@ Tactile Navigation — Flask Web Server
 import os
 import io
 import base64
+
+# ── YOLO environment setup (MUST be before importing YOLO) ─────
+import yolo_config
+
 import numpy as np
 import cv2
 from flask import Flask, render_template, request, jsonify
